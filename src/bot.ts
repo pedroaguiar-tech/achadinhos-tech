@@ -42,8 +42,18 @@ async function iniciarBot() {
   await initDatabase();
   iniciarServidorWeb();
 
+  // 1. Comando /start configurado em primeiro lugar
+  bot.command('start', (ctx) => {
+    return ctx.reply('👋 **Olá! Bem-vindo ao Achadinhos Tech!**\n\nEnvie o link de qualquer produto (Amazon, Shopee, etc.) para formatar a oferta e publicar nos canais.', { parse_mode: 'Markdown' });
+  });
+
+  // 2. Processador de mensagens de texto
   bot.on('message:text', async (ctx) => {
     const textoRecebido = ctx.message.text.trim();
+
+    // Ignora se for algum comando (ex: /start, /help)
+    if (textoRecebido.startsWith('/')) return;
+
     const checagem = validarUrlOferta(textoRecebido);
 
     if (!checagem.valido) {
@@ -90,7 +100,7 @@ async function iniciarBot() {
     }
   });
 
-  // Funcao genérica para enviar pro canal selecionado
+  // Função genérica para enviar pro canal selecionado
   async function enviarParaCanal(ctx: any, canalTarget: string, regiaoNome: string) {
     try {
       await ctx.answerCallbackQuery({ text: `Enviando para o canal ${regiaoNome}...` });
@@ -111,7 +121,7 @@ async function iniciarBot() {
         });
       }
 
-      await ctx.reply(`✅ **Publicado com sucesso no canal da ${regiaoNome}!**`);
+      await ctx.reply(`✅ **Publicado com sucesso no canal da ${regiaoNome}!**`, { parse_mode: 'Markdown' });
     } catch (err) {
       console.error(`Erro ao postar no canal ${regiaoNome}:`, err);
       await ctx.reply(`❌ Erro ao enviar para o canal da ${regiaoNome}. Verifique se o bot é Admin no canal!`);
