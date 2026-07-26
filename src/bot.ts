@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from 'grammY';
+import { Bot, InlineKeyboard } from 'grammy';
 import * as dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
