@@ -1,0 +1,142 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  background-color: #0d1117;
+  color: #f0f6fc;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.container {
+  max-width: 900px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+}
+
+/* CHAVEADOR DE IDIOMA */
+.lang-switch {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.lang-btn {
+  background: #161b22;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lang-btn:hover {
+  border-color: #58a6ff;
+  color: #f0f6fc;
+}
+
+.lang-btn.active {
+  background-color: #21262d;
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #58a6ff;
+  margin-bottom: 10px;
+}
+
+header p {
+  color: #8b949e;
+  font-size: 1.1rem;
+  margin-bottom: 40px;
+}
+
+.region-selection h2 {
+  font-size: 1.5rem;
+  margin-bottom: 30px;
+}
+
+.cards-wrapper {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 16px;
+  padding: 30px;
+  flex: 1;
+  min-width: 280px;
+  max-width: 400px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  border-color: #58a6ff;
+}
+
+.flag {
+  font-size: 3rem;
+  margin-bottom: 15px;
+}
+
+.card h3 {
+  font-size: 1.4rem;
+  margin-bottom: 15px;
+}
+
+.card p {
+  color: #8b949e;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 25px;
+}
+
+.btn {
+  display: inline-block;
+  width: 100%;
+  padding: 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.btn:hover {
+  opacity: 0.9;
+}
+
+.btn-br {
+  background-color: #238636;
+  color: #ffffff;
+}
+
+.btn-eu {
+  background-color: #1f6feb;
+  color: #ffffff;
+}
+
+footer {
+  margin-top: 50px;
+  color: #484f58;
+  font-size: 0.85rem;
+}

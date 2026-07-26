@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Achadinhos Tech | Select Region</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    
+    <!-- SELETOR DE IDIOMA -->
+    <div class="lang-switch">
+      <button id="btn-pt" class="lang-btn active" onclick="switchLanguage('pt')">🇧🇷 PT</button>
+      <button id="btn-en" class="lang-btn" onclick="switchLanguage('en')">🇬🇧 EN</button>
+    </div>
+
+    <header>
+      <h1 id="main-brand">🔥 Achadinhos Tech</h1>
+      <p id="header-desc">As melhores promoções de tecnologia, gadgets e colecionáveis selecionadas para você.</p>
+    </header>
+
+    <main class="region-selection">
+      <h2 id="main-title">Onde você quer receber os achadinhos?</h2>
+
+      <div class="cards-wrapper">
+        <!-- CARD AMÉRICA DO SUL -->
+        <div class="card card-latam">
+          <div class="flag">🇧🇷</div>
+          <h3 id="card-latam-title">América do Sul</h3>
+          <p id="card-latam-desc">Ofertas em <strong>Reais (R$)</strong> das principais lojas do Brasil (Shopee, Amazon BR, Mercado Livre).</p>
+          <a href="https://t.me/achadinhos_teech" target="_blank" class="btn btn-br" id="btn-latam">
+            Entrar no Canal BR 🚀
+          </a>
+        </div>
+
+        <!-- CARD EUROPA -->
+        <div class="card card-europe">
+          <div class="flag">🇪🇺</div>
+          <h3 id="card-eu-title">Europa</h3>
+          <p id="card-eu-desc">Ofertas em <strong>Euros (€)</strong> com envios para Portugal, Espanha e toda a União Europeia (Amazon EU, AliExpress).</p>
+          <a href="https://t.me/achadinhos_tech_europe" target="_blank" class="btn btn-eu" id="btn-eu">
+            Entrar no Canal Europa 🇪🇺
+          </a>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <p>© 2026 Achadinhos Tech. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <!-- SCRIPT DE TROCA DE IDIOMA -->
+  <script>
+    const translations = {
+      pt: {
+        brand: "🔥 Achadinhos Tech",
+        headerDesc: "As melhores promoções de tecnologia, gadgets e colecionáveis selecionadas para você.",
+        mainTitle: "Onde você quer receber os achadinhos?",
+        latamTitle: "América do Sul",
+        latamDesc: "Ofertas em <strong>Reais (R$)</strong> das principais lojas do Brasil (Shopee, Amazon BR, Mercado Livre).",
+        latamBtn: "Entrar no Canal BR 🚀",
+        euTitle: "Europa",
+        euDesc: "Ofertas em <strong>Euros (€)</strong> com envios para Portugal, Espanha e toda a União Europeia (Amazon EU, AliExpress).",
+        euBtn: "Entrar no Canal Europa 🇪🇺"
+      },
+      en: {
+        brand: "🔥 Tech Deals",
+        headerDesc: "The best deals on tech, gadgets, and collectibles handpicked for you.",
+        mainTitle: "Where do you want to receive the deals?",
+        latamTitle: "South America",
+        latamDesc: "Deals in <strong>BRL (R$)</strong> from top stores in Brazil (Shopee, Amazon BR, Mercado Livre).",
+        latamBtn: "Join BR Channel 🚀",
+        euTitle: "Europe",
+        euDesc: "Deals in <strong>Euros (€)</strong> with fast shipping to Portugal, Spain, and across the EU (Amazon EU, AliExpress).",
+        euBtn: "Join Europe Channel 🇪🇺"
+      }
+    };
+
+    function switchLanguage(lang) {
+      const t = translations[lang];
+
+      document.getElementById('main-brand').innerText = t.brand;
+      document.getElementById('header-desc').innerText = t.headerDesc;
+      document.getElementById('main-title').innerText = t.mainTitle;
+      document.getElementById('card-latam-title').innerText = t.latamTitle;
+      document.getElementById('card-latam-desc').innerHTML = t.latamDesc;
+      document.getElementById('btn-latam').innerText = t.latamBtn;
+      document.getElementById('card-eu-title').innerText = t.euTitle;
+      document.getElementById('card-eu-desc').innerHTML = t.euDesc;
+      document.getElementById('btn-eu').innerText = t.euBtn;
+
+      document.getElementById('btn-pt').classList.toggle('active', lang === 'pt');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    }
+  </script>
+</body>
+</html>
