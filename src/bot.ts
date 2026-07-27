@@ -39,19 +39,66 @@ function iniciarServidorWeb() {
   });
 }
 
+// Função responsável por processar e enviar as ofertas automáticas nos canais
+async function buscarEPostarAutomatico() {
+  console.log('🤖 [ROBÔ] Iniciando rotina de busca e envio de ofertas automáticas...');
+
+  // Lista de links/ofertas monitoradas para postagem automática
+  const ofertasFila = [
+    {
+      url: 'https://www.amazon.com.br/dp/B0BSHF7WHW', // Exemplo de produto BR
+      canal: CANAL_BR,
+      regiao: 'BR'
+    }
+  ];
+
+  for (const item of ofertasFila) {
+    try {
+      const jaExiste = await linkJaExiste(item.url);
+      if (jaExiste) {
+        console.log(`⚠️ [ROBÔ] Link já publicado anteriormente: ${item.url}`);
+        continue;
+      }
+
+      // Processa a oferta injetando a tag de afiliado e extraindo dados
+      const oferta = await processarLinkGenerico(item.url, MINHA_TAG_AMAZON);
+      const mensagemPronta = formatarMensagemOferta(oferta);
+
+      // Envia direto para o canal de destino correspondente
+      if (oferta.imagem) {
+        await bot.api.sendPhoto(item.canal, oferta.imagem, {
+          caption: mensagemPronta,
+          parse_mode: 'Markdown',
+        });
+      } else {
+        await bot.api.sendMessage(item.canal, mensagemPronta, {
+          parse_mode: 'Markdown',
+        });
+      }
+
+      // Salva no banco SQLite e grava histórico
+      await salvarOferta(oferta.titulo, oferta.precoAtual, item.url, oferta.loja, item.regiao);
+      registrarPostagem(oferta);
+
+      console.log(`✅ [ROBÔ] Oferta publicada com sucesso no canal ${item.canal}!`);
+    } catch (error) {
+      console.error(`❌ [ROBÔ] Erro ao processar oferta automática (${item.url}):`, error);
+    }
+  }
+}
+
 // Configura as tarefas automáticas de background (Cron Job)
 function iniciarAgendadorAutomatico() {
-  // Roda a cada 2 horas (às 00:00, 02:00, 04:00, etc.)
+  // Executa a cada 2 horas (às 00:00, 02:00, 04:00, etc.)
   cron.schedule('0 */2 * * *', async () => {
-    console.log('⏰ [CRON] Rodando verificação e busca automática de ofertas...');
-    try {
-      // Espaço reservado para invocar scrapers ou feeds de APIs de afiliados
-    } catch (error) {
-      console.error('❌ [CRON] Erro ao executar tarefa agendada:', error);
-    }
+    console.log('⏰ [CRON] Disparando execução agendada...');
+    await buscarEPostarAutomatico();
   });
 
   console.log('⏱️ Agendador Cron ativo (Verificação a cada 2 horas)');
+
+  // 🚀 Executa uma vez imediatamente ao iniciar o servidor para testar o envio
+  buscarEPostarAutomatico();
 }
 
 async function iniciarBot() {
