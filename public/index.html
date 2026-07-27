@@ -22,7 +22,8 @@
     </header>
 
     <main class="region-selection">
-      <h2>Escolha a sua região para ver as ofertas:</h2>
+      <!-- ADICIONADO ID AQUI PARA TRADUZIR O TÍTULO DA REGIÃO -->
+      <h2 id="main-title">Escolha a sua região para ver as ofertas:</h2>
 
       <div class="cards-wrapper">
         <!-- CARD AMÉRICA DO SUL -->
@@ -58,7 +59,7 @@
       pt: {
         brand: "🔥 Achadinhos Tech",
         headerDesc: "As melhores promoções de tecnologia, gadgets e colecionáveis selecionadas para você.",
-        mainTitle: "Onde você quer receber os achadinhos?",
+        mainTitle: "Escolha a sua região para ver as ofertas:",
         latamTitle: "América do Sul",
         latamDesc: "Ofertas em <strong>Reais (R$)</strong> das principais lojas do Brasil (Shopee, Amazon BR, Mercado Livre).",
         latamBtn: "Entrar no Canal BR 🚀",
@@ -69,7 +70,7 @@
       en: {
         brand: "🔥 Tech Deals",
         headerDesc: "The best deals on tech, gadgets, and collectibles handpicked for you.",
-        mainTitle: "Where do you want to receive the deals?",
+        mainTitle: "Choose your region to see the deals:",
         latamTitle: "South America",
         latamDesc: "Deals in <strong>BRL (R$)</strong> from top stores in Brazil (Shopee, Amazon BR, Mercado Livre).",
         latamBtn: "Join BR Channel 🚀",
@@ -92,8 +93,17 @@
       document.getElementById('card-eu-desc').innerHTML = t.euDesc;
       document.getElementById('btn-eu').innerText = t.euBtn;
 
-      document.getElementById('btn-pt').classList.toggle('active', lang === 'pt');
-      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      // Troca a borda azul (classe active) entre os dois botões
+      const btnPT = document.getElementById('btn-pt');
+      const btnEN = document.getElementById('btn-en');
+
+      if (lang === 'pt') {
+        btnPT.classList.add('active');
+        btnEN.classList.remove('active');
+      } else {
+        btnEN.classList.add('active');
+        btnPT.classList.remove('active');
+      }
     }
   </script>
 </body>
