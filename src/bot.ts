@@ -123,13 +123,13 @@ async function buscarEPostarAutomatico() {
 
 // Configura as tarefas automáticas de background (Cron Job)
 function iniciarAgendadorAutomatico() {
-  // Executa a cada 2 horas no automático
-  cron.schedule('0 */2 * * *', async () => {
-    console.log('⏰ [CRON] Disparando execução agendada...');
+  // Executa a cada 30 minutos no automático
+  cron.schedule('*/30 * * * *', async () => {
+    console.log('⏰ [CRON] Disparando execução a cada 30 minutos...');
     await buscarEPostarAutomatico();
   });
 
-  console.log('⏱️ Agendador Cron ativo (Verificação de promoções em tempo real a cada 2 horas)');
+  console.log('⏱️ Agendador Cron ativo (Verificação de promoções em tempo real a cada 30 minutos)');
 
   // 🚀 Executa uma vez imediatamente ao iniciar o servidor para testar o envio
   buscarEPostarAutomatico();
