@@ -7,6 +7,7 @@ import { processarLinkGenerico } from './parser';
 import { formatarMensagemOferta } from './formatter';
 import { registrarPostagem } from './logger';
 import { initDatabase, salvarOferta, linkJaExiste } from './database';
+import cron from 'node-cron';
 
 dotenv.config();
 
@@ -38,9 +39,25 @@ function iniciarServidorWeb() {
   });
 }
 
+// Configura as tarefas automáticas de background (Cron Job)
+function iniciarAgendadorAutomatico() {
+  // Roda a cada 2 horas (às 00:00, 02:00, 04:00, etc.)
+  cron.schedule('0 */2 * * *', async () => {
+    console.log('⏰ [CRON] Rodando verificação e busca automática de ofertas...');
+    try {
+      // Espaço reservado para invocar scrapers ou feeds de APIs de afiliados
+    } catch (error) {
+      console.error('❌ [CRON] Erro ao executar tarefa agendada:', error);
+    }
+  });
+
+  console.log('⏱️ Agendador Cron ativo (Verificação a cada 2 horas)');
+}
+
 async function iniciarBot() {
   await initDatabase();
   iniciarServidorWeb();
+  iniciarAgendadorAutomatico();
 
   // 1. Comando /start configurado em primeiro lugar
   bot.command('start', (ctx) => {
@@ -139,7 +156,7 @@ async function iniciarBot() {
   });
 
   bot.start();
-  console.log('🚀 Achadinhos Tech Multi-Região ON com roteamento de canais ativo!');
+  console.log('🚀 Achadinhos Tech Multi-Região ON com roteamento de canais e agendador ativos!');
 }
 
 iniciarBot();
