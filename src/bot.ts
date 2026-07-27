@@ -12,7 +12,7 @@ import cron from 'node-cron';
 dotenv.config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const MINHA_TAG_AMAZON = process.env.TAG_AMAZON || 'achadin0bad49-20';
+const MINHA_TAG_AMAZON = 'achadin0bad49-20';
 const CANAL_BR = process.env.CANAL_BR || '@achadinhos_teech'; 
 const CANAL_EU = process.env.CANAL_EU || '@achadinhos_tech_europe'; 
 
