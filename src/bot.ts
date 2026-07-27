@@ -12,7 +12,7 @@ import cron from 'node-cron';
 dotenv.config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const MINHA_TAG_AMAZON = process.env.TAG_AMAZON || 'achadinhostech-20';
+const MINHA_TAG_AMAZON = process.env.TAG_AMAZON || 'achadin0bad49-20';
 const CANAL_BR = process.env.CANAL_BR || '@achadinhos_teech'; 
 const CANAL_EU = process.env.CANAL_EU || '@achadinhos_tech_europe'; 
 
@@ -46,7 +46,7 @@ async function buscarEPostarAutomatico() {
   // Lista de links/ofertas monitoradas para postagem automática
   const ofertasFila = [
     {
-      url: 'https://www.amazon.com.br/dp/B0BSHF7WHW', // Exemplo de produto BR
+      url: 'https://www.amazon.com.br/dp/B09B2SBHQK', // Exemplo de produto BR
       canal: CANAL_BR,
       regiao: 'BR'
     }
