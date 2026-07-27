@@ -2,6 +2,7 @@ import { Bot, InlineKeyboard } from 'grammy';
 import * as dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
+import axios from 'axios';
 import { validarUrlOferta } from './validator';
 import { processarLinkGenerico } from './parser';
 import { formatarMensagemOferta } from './formatter';
@@ -39,63 +40,96 @@ function iniciarServidorWeb() {
   });
 }
 
+/**
+ * Busca ofertas em tempo real de feeds de promoções / scraper
+ */
+async function buscarOfertasEmTempoReal(): Promise<string[]> {
+  try {
+    const response = await axios.get('https://api.promobit.com.br/v2/offers?limit=25', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      timeout: 10000,
+    });
+
+    const ofertas = response.data?.offers || response.data || [];
+    const linksAmazon: string[] = [];
+
+    for (const item of ofertas) {
+      const url = item.url || item.link || '';
+      if (url.includes('amazon.com.br')) {
+        linksAmazon.push(url);
+      }
+    }
+
+    return linksAmazon;
+  } catch (error) {
+    console.log('⚠️ Aviso ao consultar feed dinâmico, usando lista de apoio:', error);
+    return [
+      'https://www.amazon.com.br/dp/B09B2SBHQK', // Echo Pop
+      'https://www.amazon.com.br/dp/B08C1KN5J2', // Fire TV Stick
+      'https://www.amazon.com.br/dp/B0733B3SDR', // Kindle 11ª
+      'https://www.amazon.com.br/dp/B084DWG2VQ', // Echo Dot 5ª
+    ];
+  }
+}
+
 // Função responsável por processar e enviar as ofertas automáticas nos canais
 async function buscarEPostarAutomatico() {
-  console.log('🤖 [ROBÔ] Iniciando rotina de busca e envio de ofertas automáticas...');
+  console.log('🤖 [ROBÔ] Iniciando varredura em tempo real por novas ofertas...');
 
-  // Lista de links/ofertas monitoradas para postagem automática
-  const ofertasFila = [
-    {
-      url: 'https://www.amazon.com.br/dp/B09B2SBHQK', // Exemplo de produto BR
-      canal: CANAL_BR,
-      regiao: 'BR'
-    }
-  ];
+  try {
+    const candidatos = await buscarOfertasEmTempoReal();
 
-  for (const item of ofertasFila) {
-    try {
-      const jaExiste = await linkJaExiste(item.url);
+    for (const urlItem of candidatos) {
+      // 1. Consulta o banco de dados SQLite para garantir que NUNCA repete
+      const jaExiste = await linkJaExiste(urlItem);
       if (jaExiste) {
-        console.log(`⚠️ [ROBÔ] Link já publicado anteriormente: ${item.url}`);
+        console.log(`⚠️ [ROBÔ] Link já publicado anteriormente (ignorado): ${urlItem}`);
         continue;
       }
 
-      // Processa a oferta injetando a tag de afiliado e extraindo dados
-      const oferta = await processarLinkGenerico(item.url, MINHA_TAG_AMAZON);
+      console.log(`🔥 [ROBÔ] Nova oferta encontrada: ${urlItem}`);
+
+      // 2. Processa a oferta injetando a sua tag oficial de afiliado e raspando dados
+      const oferta = await processarLinkGenerico(urlItem, MINHA_TAG_AMAZON);
       const mensagemPronta = formatarMensagemOferta(oferta);
 
-      // Envia direto para o canal de destino correspondente
+      // 3. Envia direto para o canal de destino do Brasil
       if (oferta.imagem) {
-        await bot.api.sendPhoto(item.canal, oferta.imagem, {
+        await bot.api.sendPhoto(CANAL_BR, oferta.imagem, {
           caption: mensagemPronta,
           parse_mode: 'Markdown',
         });
       } else {
-        await bot.api.sendMessage(item.canal, mensagemPronta, {
+        await bot.api.sendMessage(CANAL_BR, mensagemPronta, {
           parse_mode: 'Markdown',
         });
       }
 
-      // Salva no banco SQLite e grava histórico
-      await salvarOferta(oferta.titulo, oferta.precoAtual, item.url, oferta.loja, item.regiao);
+      // 4. Grava no banco SQLite para nunca mais repetir
+      await salvarOferta(oferta.titulo, oferta.precoAtual, urlItem, oferta.loja, 'BR');
       registrarPostagem(oferta);
 
-      console.log(`✅ [ROBÔ] Oferta publicada com sucesso no canal ${item.canal}!`);
-    } catch (error) {
-      console.error(`❌ [ROBÔ] Erro ao processar oferta automática (${item.url}):`, error);
+      console.log(`✅ [ROBÔ] Oferta publicada com sucesso no canal ${CANAL_BR}!`);
+
+      // Publica uma oferta por ciclo automático e finaliza o loop
+      break;
     }
+  } catch (error) {
+    console.error('❌ [ROBÔ] Erro na rotina de busca automática:', error);
   }
 }
 
 // Configura as tarefas automáticas de background (Cron Job)
 function iniciarAgendadorAutomatico() {
-  // Executa a cada 2 horas (às 00:00, 02:00, 04:00, etc.)
+  // Executa a cada 2 horas no automático
   cron.schedule('0 */2 * * *', async () => {
     console.log('⏰ [CRON] Disparando execução agendada...');
     await buscarEPostarAutomatico();
   });
 
-  console.log('⏱️ Agendador Cron ativo (Verificação a cada 2 horas)');
+  console.log('⏱️ Agendador Cron ativo (Verificação de promoções em tempo real a cada 2 horas)');
 
   // 🚀 Executa uma vez imediatamente ao iniciar o servidor para testar o envio
   buscarEPostarAutomatico();
@@ -111,11 +145,10 @@ async function iniciarBot() {
     return ctx.reply('👋 **Olá! Bem-vindo ao Achadinhos Tech!**\n\nEnvie o link de qualquer produto (Amazon, Shopee, etc.) para formatar a oferta e publicar nos canais.', { parse_mode: 'Markdown' });
   });
 
-  // 2. Processador de mensagens de texto
+  // 2. Processador de mensagens de texto recebidas no chat privado
   bot.on('message:text', async (ctx) => {
     const textoRecebido = ctx.message.text.trim();
 
-    // Ignora se for algum comando (ex: /start, /help)
     if (textoRecebido.startsWith('/')) return;
 
     const checagem = validarUrlOferta(textoRecebido);
@@ -164,7 +197,7 @@ async function iniciarBot() {
     }
   });
 
-  // Função genérica para enviar pro canal selecionado
+  // Função genérica para enviar pro canal selecionado via botão
   async function enviarParaCanal(ctx: any, canalTarget: string, regiaoNome: string) {
     try {
       await ctx.answerCallbackQuery({ text: `Enviando para o canal ${regiaoNome}...` });
