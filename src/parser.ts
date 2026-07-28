@@ -1,15 +1,30 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-export async function processarLinkGenerico(url: string, tagAmazon: string) {
-  const urlMinuscula = url.toLowerCase();
-
+export async function processarLinkGenerico(urlOriginal: string, tagAmazon: string) {
+  let url = urlOriginal;
   const headersNavegador = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Accept-Language': 'pt-BR,pt;q=0.9',
   };
 
-  // 1. SUPORTE SHOPEE
+  // Resolve redirecionamento de links encurtados (meli.la ou shp.ee)
+  try {
+    const resRedir = await axios.get(urlOriginal, {
+      headers: headersNavegador,
+      maxRedirects: 5,
+      timeout: 6000,
+    });
+    if (resRedir.request?.res?.responseUrl) {
+      url = resRedir.request.res.responseUrl;
+    }
+  } catch (e) {
+    // Segue com a URL original em caso de falha no redirecionamento
+  }
+
+  const urlMinuscula = url.toLowerCase();
+
+  // 1. SHOPEE
   if (urlMinuscula.includes('shopee.com.br') || urlMinuscula.includes('shp.ee')) {
     try {
       const response = await axios.get(url, { headers: headersNavegador, timeout: 10000 });
@@ -27,16 +42,16 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
       return {
         titulo: titulo,
         precoAtual: isNaN(preco) ? 0 : preco,
-        linkAfiliado: url,
+        linkAfiliado: urlOriginal,
         loja: 'Shopee',
         imagem: imagem
       };
     } catch (error) {
-      return { titulo: 'Oferta Especial na Shopee', precoAtual: 0, linkAfiliado: url, loja: 'Shopee', imagem: '' };
+      return { titulo: 'Oferta Especial na Shopee', precoAtual: 0, linkAfiliado: urlOriginal, loja: 'Shopee', imagem: '' };
     }
   }
 
-  // 2. SUPORTE MERCADO LIVRE
+  // 2. MERCADO LIVRE
   const matchId = url.match(/MLB-?(\d+)/i);
   let tituloFormatado = '';
 
@@ -53,23 +68,7 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
   if (matchId) {
     const mlbId = `MLB${matchId[1]}`;
 
-    // A) Tenta a API de produtos de catálogo (/products/MLB.../items)
-    try {
-      const resCat = await axios.get(`https://api.mercadolibre.com/products/${mlbId}/items`, { timeout: 4000 });
-      if (resCat.data && resCat.data.results && resCat.data.results.length > 0) {
-        const item = resCat.data.results[0];
-        const img = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : '';
-        return {
-          titulo: item.title || tituloFormatado,
-          precoAtual: item.price || 0,
-          linkAfiliado: url,
-          loja: 'Mercado Livre',
-          imagem: img
-        };
-      }
-    } catch (e) {}
-
-    // B) Tenta a API de itens diretos (/items/MLB...)
+    // Tenta API de itens
     try {
       const resItem = await axios.get(`https://api.mercadolibre.com/items/${mlbId}`, { timeout: 4000 });
       if (resItem.data && resItem.data.title) {
@@ -81,7 +80,23 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
         return {
           titulo: data.title,
           precoAtual: data.price || 0,
-          linkAfiliado: url,
+          linkAfiliado: urlOriginal,
+          loja: 'Mercado Livre',
+          imagem: img
+        };
+      }
+    } catch (e) {}
+
+    // Tenta API de produtos de catálogo
+    try {
+      const resCat = await axios.get(`https://api.mercadolibre.com/products/${mlbId}/items`, { timeout: 4000 });
+      if (resCat.data && resCat.data.results && resCat.data.results.length > 0) {
+        const item = resCat.data.results[0];
+        const img = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : '';
+        return {
+          titulo: item.title || tituloFormatado,
+          precoAtual: item.price || 0,
+          linkAfiliado: urlOriginal,
           loja: 'Mercado Livre',
           imagem: img
         };
@@ -92,7 +107,7 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
   return {
     titulo: tituloFormatado || 'Oferta Especial no Mercado Livre',
     precoAtual: 0,
-    linkAfiliado: url,
+    linkAfiliado: urlOriginal,
     loja: 'Mercado Livre',
     imagem: ''
   };
