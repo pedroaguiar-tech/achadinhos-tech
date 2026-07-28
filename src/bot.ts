@@ -76,27 +76,40 @@ async function buscarOfertasMercadoLivre(): Promise<string[]> {
   }
 }
 
+/**
+ * Busca promoções em diversas categorias para garantir variedade no canal
+ */
 async function buscarEPostarAutomatico() {
-  console.log('🤖 [ROBÔ ML] Buscando promoções no Mercado Livre...');
+  console.log('🤖 [ROBÔ ML] Buscando nova promoção variada no Mercado Livre...');
 
   try {
     const candidatos = await buscarOfertasMercadoLivre();
 
-    for (const urlItem of candidatos) {
+    if (!candidatos || candidatos.length === 0) {
+      console.log('⚠️ Nenhuma oferta nova encontrada no momento.');
+      return;
+    }
+
+    // Embaralha a lista para não postar sempre na mesma ordem
+    const candidatosEmbaralhados = candidatos.sort(() => Math.random() - 0.5);
+
+    for (const urlItem of candidatosEmbaralhados) {
+      // Verifica no banco de dados SQLite se esse produto já foi postado recentemente
       const jaExiste = await linkJaExiste(urlItem);
       if (jaExiste) {
-        console.log(`⚠️ [ROBÔ ML] Link já publicado (ignorado): ${urlItem}`);
+        console.log(`⚠️ [ROBÔ ML] Produto já publicado anteriormente (pulando): ${urlItem}`);
         continue;
       }
 
-      console.log(`🔥 [ROBÔ ML] Nova oferta do Mercado Livre encontrada: ${urlItem}`);
+      console.log(`🔥 [ROBÔ ML] Processando produto inédito: ${urlItem}`);
 
-      // Processa e formata os dados do produto do Mercado Livre
+      // Processa título, preço real e foto do produto raspado
       const oferta = await processarLinkGenerico(urlItem, '');
       
-      // Adiciona o seu link de afiliado do Mercado Livre na mensagem
-      oferta.linkAfiliado = 'https://meli.la/34ciuTp';
-      
+      oferta.loja = 'Mercado Livre';
+      // Atribui o link real da oferta raspada para o botão/link
+      oferta.linkAfiliado = urlItem; 
+
       const mensagemPronta = formatarMensagemOferta(oferta);
 
       if (oferta.imagem) {
@@ -110,11 +123,12 @@ async function buscarEPostarAutomatico() {
         });
       }
 
+      // Salva no banco de dados para nunca mais repetir essa oferta
       await salvarOferta(oferta.titulo, oferta.precoAtual, urlItem, 'Mercado Livre', 'BR');
       registrarPostagem(oferta);
 
-      console.log(`✅ [ROBÔ ML] Oferta enviada com sucesso para o canal ${CANAL_BR}!`);
-      break; // Posta uma por ciclo de 30 minutos
+      console.log(`✅ [ROBÔ ML] Nova oferta variada ("${oferta.titulo}") publicada com sucesso!`);
+      break; // Publica apenas 1 oferta por ciclo de 30 min para manter o ritmo perfeito
     }
   } catch (error) {
     console.error('❌ [ROBÔ ML] Erro na rotina do Mercado Livre:', error);
