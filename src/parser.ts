@@ -8,7 +8,7 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
     if (match) {
       const mlbId = match[0].replace('-', '').toUpperCase();
       
-      // Endereço oficial com 'b': api.mercadolibre.com
+      // Endereço oficial da API com 'b': api.mercadolibre.com
       const apiUrl = `https://api.mercadolibre.com/items/${mlbId}`;
       const response = await axios.get(apiUrl, { timeout: 10000 });
       const data = response.data;
