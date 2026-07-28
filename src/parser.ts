@@ -68,7 +68,51 @@ export async function processarLinkGenerico(urlOriginal: string, tagAmazon: stri
   if (matchId) {
     const mlbId = `MLB${matchId[1]}`;
 
-    // Tenta API de itens
+    // A) Consulta Detalhes do Produto de Catálogo (/products/MLB...)
+    try {
+      const resProd = await axios.get(`https://api.mercadolibre.com/products/${mlbId}`, { timeout: 4000 });
+      if (resProd.data) {
+        const data = resProd.data;
+        const titulo = data.name || tituloFormatado;
+        
+        // Pega o preço da caixa de compra principal (buy_box_winner)
+        let preco = data.buy_box_winner?.price || 0;
+        
+        // Pega a imagem principal
+        let img = '';
+        if (data.pictures && data.pictures.length > 0) {
+          img = data.pictures[0].url || data.pictures[0].secure_url;
+        }
+
+        if (preco > 0 || img) {
+          return {
+            titulo: titulo,
+            precoAtual: preco,
+            linkAfiliado: urlOriginal,
+            loja: 'Mercado Livre',
+            imagem: img
+          };
+        }
+      }
+    } catch (e) {}
+
+    // B) Consulta Itens Atrelados ao Catálogo (/products/MLB.../items)
+    try {
+      const resCat = await axios.get(`https://api.mercadolibre.com/products/${mlbId}/items`, { timeout: 4000 });
+      if (resCat.data && resCat.data.results && resCat.data.results.length > 0) {
+        const item = resCat.data.results[0];
+        const img = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : '';
+        return {
+          titulo: item.title || tituloFormatado,
+          precoAtual: item.price || 0,
+          linkAfiliado: urlOriginal,
+          loja: 'Mercado Livre',
+          imagem: img
+        };
+      }
+    } catch (e) {}
+
+    // C) Consulta Item Direto (/items/MLB...)
     try {
       const resItem = await axios.get(`https://api.mercadolibre.com/items/${mlbId}`, { timeout: 4000 });
       if (resItem.data && resItem.data.title) {
@@ -80,22 +124,6 @@ export async function processarLinkGenerico(urlOriginal: string, tagAmazon: stri
         return {
           titulo: data.title,
           precoAtual: data.price || 0,
-          linkAfiliado: urlOriginal,
-          loja: 'Mercado Livre',
-          imagem: img
-        };
-      }
-    } catch (e) {}
-
-    // Tenta API de produtos de catálogo
-    try {
-      const resCat = await axios.get(`https://api.mercadolibre.com/products/${mlbId}/items`, { timeout: 4000 });
-      if (resCat.data && resCat.data.results && resCat.data.results.length > 0) {
-        const item = resCat.data.results[0];
-        const img = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : '';
-        return {
-          titulo: item.title || tituloFormatado,
-          precoAtual: item.price || 0,
           linkAfiliado: urlOriginal,
           loja: 'Mercado Livre',
           imagem: img
