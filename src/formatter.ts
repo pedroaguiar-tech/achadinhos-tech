@@ -1,29 +1,39 @@
 export interface Oferta {
   titulo: string;
-  precoPromocional: number;
+  precoAtual: number;
   precoOriginal?: number;
+  desconto?: number;
   linkAfiliado: string;
+  loja: string;
   imagem?: string;
-  loja?: string;
 }
 
 export function formatarMensagemOferta(oferta: Oferta): string {
-  const eEuropa = oferta.loja?.toLowerCase().includes('europe') || oferta.linkAfiliado.includes('amzn.eu');
-  const simboloMoeda = eEuropa ? '€' : 'R$';
+  // Garante que precoAtual seja um número válido para evitar erro com toFixed
+  const preco = typeof oferta.precoAtual === 'number' && !isNaN(oferta.precoAtual) 
+    ? oferta.precoAtual 
+    : 0;
 
-  let mensagem = `🔥 **${oferta.titulo.toUpperCase()}** 🔥\n\n`;
+  const precoFormatado = preco > 0 
+    ? `R$ ${preco.toFixed(2).replace('.', ',')}` 
+    : 'Consulte no site';
 
-  if (oferta.precoOriginal && oferta.precoOriginal > oferta.precoPromocional) {
-    const desconto = Math.round(
-      ((oferta.precoOriginal - oferta.precoPromocional) / oferta.precoOriginal) * 100
-    );
-    mensagem += `❌ De: ~${simboloMoeda} ${oferta.precoOriginal.toFixed(2)}~\n`;
-    mensagem += `✅ **Por: ${simboloMoeda} ${oferta.precoPromocional.toFixed(2)} (${desconto}% OFF!)**\n\n`;
+  let mensagem = `🔥 **${oferta.titulo || 'Oferta Imperdível!'}**\n\n`;
+
+  if (oferta.precoOriginal && oferta.precoOriginal > preco && preco > 0) {
+    const precoOrigFormatado = `R$ ${oferta.precoOriginal.toFixed(2).replace('.', ',')}`;
+    mensagem += `❌ De: ~${precoOrigFormatado}~\n`;
+    mensagem += `✅ **Por apenas: ${precoFormatado}**\n`;
   } else {
-    mensagem += `✅ **Por apenas: ${simboloMoeda} ${oferta.precoPromocional.toFixed(2)}**\n\n`;
+    mensagem += `💰 **Preço:** ${precoFormatado}\n`;
   }
 
-  mensagem += `🛒 **Compre com desconto aqui:**\n${oferta.linkAfiliado}`;
+  if (oferta.desconto) {
+    mensagem += `📉 **Desconto:** ${oferta.desconto}%\n`;
+  }
+
+  mensagem += `🛒 **Loja:** ${oferta.loja || 'Mercado Livre'}\n\n`;
+  mensagem += `🔗 **Garanta o seu aqui:**\n${oferta.linkAfiliado}`;
 
   return mensagem;
 }
