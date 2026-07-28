@@ -22,9 +22,7 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
       const precoMeta = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content');
       
       let preco = 0;
-      if (precoMeta) {
-        preco = parseFloat(precoMeta);
-      }
+      if (precoMeta) preco = parseFloat(precoMeta);
 
       return {
         titulo: titulo,
@@ -34,14 +32,7 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
         imagem: imagem
       };
     } catch (error) {
-      console.error('⚠️ Erro ao processar link da Shopee:', error);
-      return {
-        titulo: 'Oferta Especial na Shopee',
-        precoAtual: 0,
-        linkAfiliado: url,
-        loja: 'Shopee',
-        imagem: ''
-      };
+      return { titulo: 'Oferta Especial na Shopee', precoAtual: 0, linkAfiliado: url, loja: 'Shopee', imagem: '' };
     }
   }
 
@@ -49,7 +40,6 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
   const matchId = url.match(/MLB-?(\d+)/i);
   let tituloFormatado = '';
 
-  // Extrai nome limpo direto da URL
   try {
     const urlPath = new URL(url).pathname;
     const partes = urlPath.split('/').filter(p => p.length > 0);
@@ -63,9 +53,25 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
   if (matchId) {
     const mlbId = `MLB${matchId[1]}`;
 
-    // A) Endpoint de ITENS (/items/MLB...)
+    // A) Tenta a API de produtos de catálogo (/products/MLB.../items)
     try {
-      const resItem = await axios.get(`https://api.mercadolibre.com/items/${mlbId}`, { timeout: 5000 });
+      const resCat = await axios.get(`https://api.mercadolibre.com/products/${mlbId}/items`, { timeout: 4000 });
+      if (resCat.data && resCat.data.results && resCat.data.results.length > 0) {
+        const item = resCat.data.results[0];
+        const img = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : '';
+        return {
+          titulo: item.title || tituloFormatado,
+          precoAtual: item.price || 0,
+          linkAfiliado: url,
+          loja: 'Mercado Livre',
+          imagem: img
+        };
+      }
+    } catch (e) {}
+
+    // B) Tenta a API de itens diretos (/items/MLB...)
+    try {
+      const resItem = await axios.get(`https://api.mercadolibre.com/items/${mlbId}`, { timeout: 4000 });
       if (resItem.data && resItem.data.title) {
         const data = resItem.data;
         const img = data.pictures && data.pictures.length > 0 
@@ -81,52 +87,7 @@ export async function processarLinkGenerico(url: string, tagAmazon: string) {
         };
       }
     } catch (e) {}
-
-    // B) Endpoint de CATÁLOGO (/products/MLB...)
-    try {
-      const resProduct = await axios.get(`https://api.mercadolibre.com/products/${mlbId}`, { timeout: 5000 });
-      if (resProduct.data) {
-        const data = resProduct.data;
-        const titulo = data.name || tituloFormatado;
-        const img = data.pictures && data.pictures.length > 0 
-          ? data.pictures[0].url || data.pictures[0].secure_url 
-          : '';
-        
-        const preco = data.buy_box_winner?.price || 0;
-
-        return {
-          titulo: titulo,
-          precoAtual: preco,
-          linkAfiliado: url,
-          loja: 'Mercado Livre',
-          imagem: img
-        };
-      }
-    } catch (e) {}
   }
-
-  // C) Raspagem HTML com Cheerio
-  try {
-    const response = await axios.get(url, { headers: headersNavegador, timeout: 8000 });
-    const $ = cheerio.load(response.data);
-
-    const imagem = $('meta[property="og:image"]').attr('content') || '';
-    const precoTexto = $('.ui-pdp-price__second-line .andes-money-amount__fraction').first().text().trim() ||
-                       $('.andes-money-amount__fraction').first().text().trim();
-
-    let preco = 0;
-    if (precoTexto) {
-      preco = parseFloat(precoTexto.replace(/\./g, '').replace(',', '.'));
-    }
-
-    return {
-      titulo: tituloFormatado || 'Oferta no Mercado Livre',
-      precoAtual: isNaN(preco) ? 0 : preco,
-      linkAfiliado: url,
-      loja: 'Mercado Livre',
-      imagem: imagem
-    };
-  } catch (err) {}
 
   return {
     titulo: tituloFormatado || 'Oferta Especial no Mercado Livre',
