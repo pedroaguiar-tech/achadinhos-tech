@@ -1,47 +1,43 @@
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 
 export async function processarLinkGenerico(url: string, tagAmazon: string) {
   try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-      },
-      timeout: 10000,
-    });
+    // Extrai o ID do item do Mercado Livre (ex: MLB46836439)
+    const match = url.match(/MLB-?\d+/i);
 
-    const $ = cheerio.load(response.data);
+    if (match) {
+      const mlbId = match[0].replace('-', '').toUpperCase();
+      
+      // Chamada para a API pública oficial do Mercado Livre (não cai em CAPTCHA)
+      const apiUrl = `https://api.mercadolivre.com/items/${mlbId}`;
+      const response = await axios.get(apiUrl, { timeout: 10000 });
+      const data = response.data;
 
-    // Extrai o Título real do produto
-    let titulo = $('h1.ui-pdp-title').text().trim() || 
-                 $('meta[property="og:title"]').attr('content') || 
-                 $('h1').text().trim() || 
-                 'Oferta em Destaque';
+      const titulo = data.title || 'Produto em Destaque';
+      const preco = data.price || 0;
+      const imagem = data.thumbnail ? data.thumbnail.replace('-I.jpg', '-O.jpg') : '';
 
-    // Extrai a Imagem principal do produto
-    let imagem = $('meta[property="og:image"]').attr('content') || '';
-
-    // Extrai o Preço do produto no Mercado Livre
-    let precoTexto = $('.ui-pdp-price__second-line .andes-money-amount__fraction').first().text().trim() ||
-                     $('.andes-money-amount__fraction').first().text().trim();
-
-    let preco = 0;
-    if (precoTexto) {
-      preco = parseFloat(precoTexto.replace(/\./g, '').replace(',', '.'));
+      return {
+        titulo: titulo,
+        precoAtual: preco,
+        linkAfiliado: url,
+        loja: 'Mercado Livre',
+        imagem: imagem
+      };
     }
 
+    // Se for um link de busca/ofertas ou sem ID explícito
     return {
-      titulo: titulo,
-      precoAtual: isNaN(preco) ? 0 : preco,
+      titulo: 'Oferta Especial no Mercado Livre',
+      precoAtual: 0,
       linkAfiliado: url,
       loja: 'Mercado Livre',
-      imagem: imagem
+      imagem: ''
     };
   } catch (error) {
-    console.error('Erro ao processar parser:', error);
+    console.error('⚠️ Erro ao consultar API pública do Mercado Livre:', error);
     return {
-      titulo: 'Produto em Destaque',
+      titulo: 'Confira esta promoção no Mercado Livre',
       precoAtual: 0,
       linkAfiliado: url,
       loja: 'Mercado Livre',
