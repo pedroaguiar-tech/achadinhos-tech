@@ -3,6 +3,7 @@ import * as dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
 import axios from 'axios';
+import * as cheerio from 'cheerio';
 import { validarUrlOferta } from './validator';
 import { processarLinkGenerico } from './parser';
 import { formatarMensagemOferta } from './formatter';
@@ -13,7 +14,6 @@ import cron from 'node-cron';
 dotenv.config();
 
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const MINHA_TAG_AMAZON = 'achadin0bad49-20';
 const CANAL_BR = process.env.CANAL_BR || '@achadinhos_teech'; 
 const CANAL_EU = process.env.CANAL_EU || '@achadinhos_tech_europe'; 
 
@@ -24,7 +24,6 @@ if (!BOT_TOKEN) {
 
 const bot = new Bot(BOT_TOKEN);
 
-// Inicializa o servidor Express para a Landing Page
 function iniciarServidorWeb() {
   const app = express();
   const PORT = process.env.PORT || 3000;
@@ -41,61 +40,65 @@ function iniciarServidorWeb() {
 }
 
 /**
- * Busca ofertas em tempo real de feeds de promoções / scraper
+ * Raspa os produtos mais vendidos / ofertas do Mercado Livre Brasil
  */
-async function buscarOfertasEmTempoReal(): Promise<string[]> {
+async function buscarOfertasMercadoLivre(): Promise<string[]> {
   try {
-    const response = await axios.get('https://api.promobit.com.br/v2/offers?limit=25', {
+    const response = await axios.get('https://www.mercadolivre.com.br/ofertas', {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
       },
       timeout: 10000,
     });
 
-    const ofertas = response.data?.offers || response.data || [];
-    const linksAmazon: string[] = [];
+    const $ = cheerio.load(response.data);
+    const linksML: string[] = [];
 
-    for (const item of ofertas) {
-      const url = item.url || item.link || '';
-      if (url.includes('amazon.com.br')) {
-        linksAmazon.push(url);
+    $('a').each((_, el) => {
+      const href = $(el).attr('href');
+      if (href && (href.includes('mercadolivre.com.br/MLB') || href.includes('/p/MLB'))) {
+        // Limpa a URL removendo parâmetros pesados de rastreio original
+        const urlLimpa = href.split('#')[0].split('?')[0];
+        if (!linksML.includes(urlLimpa)) {
+          linksML.push(urlLimpa);
+        }
       }
-    }
+    });
 
-    return linksAmazon;
+    return linksML;
   } catch (error) {
-    console.log('⚠️ Aviso ao consultar feed dinâmico, usando lista de apoio:', error);
+    console.log('⚠️ Erro ao raspar Mercado Livre, utilizando lista de apoio:', error);
     return [
-      'https://www.amazon.com.br/dp/B09B2SBHQK', // Echo Pop
-      'https://www.amazon.com.br/dp/B08C1KN5J2', // Fire TV Stick
-      'https://www.amazon.com.br/dp/B0733B3SDR', // Kindle 11ª
-      'https://www.amazon.com.br/dp/B084DWG2VQ', // Echo Dot 5ª
+      'https://www.mercadolivre.com.br/p/MLB21856382',
+      'https://www.mercadolivre.com.br/p/MLB19156432',
     ];
   }
 }
 
-// Função responsável por processar e enviar as ofertas automáticas nos canais
 async function buscarEPostarAutomatico() {
-  console.log('🤖 [ROBÔ] Iniciando varredura em tempo real por novas ofertas...');
+  console.log('🤖 [ROBÔ ML] Buscando promoções no Mercado Livre...');
 
   try {
-    const candidatos = await buscarOfertasEmTempoReal();
+    const candidatos = await buscarOfertasMercadoLivre();
 
     for (const urlItem of candidatos) {
-      // 1. Consulta o banco de dados SQLite para garantir que NUNCA repete
       const jaExiste = await linkJaExiste(urlItem);
       if (jaExiste) {
-        console.log(`⚠️ [ROBÔ] Link já publicado anteriormente (ignorado): ${urlItem}`);
+        console.log(`⚠️ [ROBÔ ML] Link já publicado (ignorado): ${urlItem}`);
         continue;
       }
 
-      console.log(`🔥 [ROBÔ] Nova oferta encontrada: ${urlItem}`);
+      console.log(`🔥 [ROBÔ ML] Nova oferta do Mercado Livre encontrada: ${urlItem}`);
 
-      // 2. Processa a oferta injetando a sua tag oficial de afiliado e raspando dados
-      const oferta = await processarLinkGenerico(urlItem, MINHA_TAG_AMAZON);
+      // Processa e formata os dados do produto do Mercado Livre
+      const oferta = await processarLinkGenerico(urlItem, '');
+      
+      // Adiciona o seu link de afiliado do Mercado Livre na mensagem
+      oferta.linkAfiliado = 'https://meli.la/34ciuTp';
+      
       const mensagemPronta = formatarMensagemOferta(oferta);
 
-      // 3. Envia direto para o canal de destino do Brasil
       if (oferta.imagem) {
         await bot.api.sendPhoto(CANAL_BR, oferta.imagem, {
           caption: mensagemPronta,
@@ -107,31 +110,26 @@ async function buscarEPostarAutomatico() {
         });
       }
 
-      // 4. Grava no banco SQLite para nunca mais repetir
-      await salvarOferta(oferta.titulo, oferta.precoAtual, urlItem, oferta.loja, 'BR');
+      await salvarOferta(oferta.titulo, oferta.precoAtual, urlItem, 'Mercado Livre', 'BR');
       registrarPostagem(oferta);
 
-      console.log(`✅ [ROBÔ] Oferta publicada com sucesso no canal ${CANAL_BR}!`);
-
-      // Publica uma oferta por ciclo automático e finaliza o loop
-      break;
+      console.log(`✅ [ROBÔ ML] Oferta enviada com sucesso para o canal ${CANAL_BR}!`);
+      break; // Posta uma por ciclo de 30 minutos
     }
   } catch (error) {
-    console.error('❌ [ROBÔ] Erro na rotina de busca automática:', error);
+    console.error('❌ [ROBÔ ML] Erro na rotina do Mercado Livre:', error);
   }
 }
 
-// Configura as tarefas automáticas de background (Cron Job)
 function iniciarAgendadorAutomatico() {
-  // Executa a cada 30 minutos no automático
   cron.schedule('*/30 * * * *', async () => {
-    console.log('⏰ [CRON] Disparando execução a cada 30 minutos...');
+    console.log('⏰ [CRON ML] Executando varredura a cada 30 minutos...');
     await buscarEPostarAutomatico();
   });
 
-  console.log('⏱️ Agendador Cron ativo (Verificação de promoções em tempo real a cada 30 minutos)');
-
-  // 🚀 Executa uma vez imediatamente ao iniciar o servidor para testar o envio
+  console.log('⏱️ Agendador Cron ativo para o Mercado Livre (Frequência: 30 min)');
+  
+  // Dispara o teste imediato ao ligar o servidor no Render
   buscarEPostarAutomatico();
 }
 
@@ -140,32 +138,28 @@ async function iniciarBot() {
   iniciarServidorWeb();
   iniciarAgendadorAutomatico();
 
-  // 1. Comando /start configurado em primeiro lugar
   bot.command('start', (ctx) => {
-    return ctx.reply('👋 **Olá! Bem-vindo ao Achadinhos Tech!**\n\nEnvie o link de qualquer produto (Amazon, Shopee, etc.) para formatar a oferta e publicar nos canais.', { parse_mode: 'Markdown' });
+    return ctx.reply('👋 **Olá! Bem-vindo ao Achadinhos Tech!**\n\nEnvie o link de qualquer produto para formatar a oferta.', { parse_mode: 'Markdown' });
   });
 
-  // 2. Processador de mensagens de texto recebidas no chat privado
   bot.on('message:text', async (ctx) => {
     const textoRecebido = ctx.message.text.trim();
-
     if (textoRecebido.startsWith('/')) return;
 
     const checagem = validarUrlOferta(textoRecebido);
-
     if (!checagem.valido) {
       return ctx.reply(`❌ **Link Inválido:** ${checagem.motivo}`, { parse_mode: 'Markdown' });
     }
 
     const jaPostado = await linkJaExiste(textoRecebido);
     if (jaPostado) {
-      return ctx.reply('⚠️ **Atenção:** Este link já foi registrado no banco de dados anteriormente!', { parse_mode: 'Markdown' });
+      return ctx.reply('⚠️ **Atenção:** Este link já foi registrado anteriormente!', { parse_mode: 'Markdown' });
     }
 
     const mensagemAviso = await ctx.reply('🔎 *Buscando dados atualizados do produto...*', { parse_mode: 'Markdown' });
 
     try {
-      const oferta = await processarLinkGenerico(textoRecebido, MINHA_TAG_AMAZON);
+      const oferta = await processarLinkGenerico(textoRecebido, '');
       const mensagemPronta = formatarMensagemOferta(oferta);
 
       registrarPostagem(oferta);
@@ -173,7 +167,6 @@ async function iniciarBot() {
 
       await ctx.api.deleteMessage(ctx.chat.id, mensagemAviso.message_id);
 
-      // Teclado com opção de escolha do canal destino
       const teclado = new InlineKeyboard()
         .text('🇧🇷 Postar no Brasil', 'postar_br')
         .text('🇪🇺 Postar na Europa', 'postar_eu');
@@ -197,11 +190,9 @@ async function iniciarBot() {
     }
   });
 
-  // Função genérica para enviar pro canal selecionado via botão
   async function enviarParaCanal(ctx: any, canalTarget: string, regiaoNome: string) {
     try {
       await ctx.answerCallbackQuery({ text: `Enviando para o canal ${regiaoNome}...` });
-
       const mensagemOriginal = ctx.callbackQuery.message;
 
       if (mensagemOriginal?.photo) {
@@ -225,18 +216,16 @@ async function iniciarBot() {
     }
   }
 
-  // Escutador do botão Brasil
   bot.callbackQuery('postar_br', async (ctx) => {
     await enviarParaCanal(ctx, CANAL_BR, 'América do Sul 🇧🇷');
   });
 
-  // Escutador do botão Europa
   bot.callbackQuery('postar_eu', async (ctx) => {
     await enviarParaCanal(ctx, CANAL_EU, 'Europa 🇪🇺');
   });
 
   bot.start();
-  console.log('🚀 Achadinhos Tech Multi-Região ON com roteamento de canais e agendador ativos!');
+  console.log('🚀 Achadinhos Tech ON operando com Mercado Livre!');
 }
 
 iniciarBot();
