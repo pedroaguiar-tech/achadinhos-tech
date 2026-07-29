@@ -3,7 +3,6 @@ import * as dotenv from 'dotenv';
 import express from 'express';
 import path from 'path';
 import axios from 'axios';
-import * as cheerio from 'cheerio';
 import { validarUrlOferta } from './validator';
 import { processarLinkGenerico } from './parser';
 import { formatarMensagemOferta } from './formatter';
@@ -18,7 +17,7 @@ const CANAL_BR = process.env.CANAL_BR || '@achadinhos_teech';
 const CANAL_EU = process.env.CANAL_EU || '@achadinhos_tech_europe'; 
 
 if (!BOT_TOKEN) {
-  console.error('❌ ERRO: BOT_TOKEN não foi configurado no arquivo .env!');
+  console.error('❌ ERRO: BOT_TOKEN não foi configurado!');
   process.exit(1);
 }
 
@@ -40,75 +39,56 @@ function iniciarServidorWeb() {
 }
 
 /**
- * Raspa os produtos mais vendidos / ofertas do Mercado Livre Brasil
+ * Busca ofertas em alta usando a API oficial do Mercado Livre Brasil (sem bloqueio de IP)
  */
-async function buscarOfertasMercadoLivre(): Promise<string[]> {
+async function buscarOfertasMercadoLivreAPI(): Promise<any[]> {
+  const termosBusca = ['tecnologia', 'smartphone', 'fone bluetooth', 'gamer', 'smartwatch', 'casa inteligente'];
+  const termoSorteado = termosBusca[Math.floor(Math.random() * termosBusca.length)];
+
   try {
-    const response = await axios.get('https://www.mercadolivre.com.br/ofertas', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-      },
-      timeout: 10000,
-    });
+    const urlApi = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termoSorteado)}&sort=relevance`;
+    const response = await axios.get(urlApi, { timeout: 8000 });
 
-    const $ = cheerio.load(response.data);
-    const linksML: string[] = [];
-
-    $('a').each((_, el) => {
-      const href = $(el).attr('href');
-      if (href && (href.includes('mercadolivre.com.br/MLB') || href.includes('/p/MLB'))) {
-        // Limpa a URL removendo parâmetros pesados de rastreio original
-        const urlLimpa = href.split('#')[0].split('?')[0];
-        if (!linksML.includes(urlLimpa)) {
-          linksML.push(urlLimpa);
-        }
-      }
-    });
-
-    return linksML;
+    if (response.data && response.data.results) {
+      return response.data.results.map((item: any) => ({
+        titulo: item.title,
+        precoAtual: item.price,
+        linkAfiliado: item.permalink,
+        loja: 'Mercado Livre',
+        imagem: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : ''
+      }));
+    }
+    return [];
   } catch (error) {
-    console.log('⚠️ Erro ao raspar Mercado Livre, utilizando lista de apoio:', error);
-    return [
-      'https://www.mercadolivre.com.br/p/MLB21856382',
-      'https://www.mercadolivre.com.br/p/MLB19156432',
-    ];
+    console.error('⚠️ Erro ao buscar ofertas na API do ML:', error);
+    return [];
   }
 }
 
 /**
- * Busca promoções em diversas categorias para garantir variedade no canal
+ * Rotina automática autônoma de busca e publicação
  */
 async function buscarEPostarAutomatico() {
-  console.log('🤖 [ROBÔ ML] Buscando nova promoção variada no Mercado Livre...');
+  console.log('🤖 [ROBÔ ML] Buscando nova promoção via API Oficial do Mercado Livre...');
 
   try {
-    const candidatos = await buscarOfertasMercadoLivre();
+    const ofertas = await buscarOfertasMercadoLivreAPI();
 
-    if (!candidatos || candidatos.length === 0) {
-      console.log('⚠️ Nenhuma oferta nova encontrada no momento.');
+    if (!ofertas || ofertas.length === 0) {
+      console.log('⚠️ Nenhuma oferta encontrada na API no momento.');
       return;
     }
 
-    // Embaralha a lista para não postar sempre na mesma ordem
-    const candidatosEmbaralhados = candidatos.sort(() => Math.random() - 0.5);
+    // Embaralha para variar as postagens
+    const ofertasEmbaralhadas = ofertas.sort(() => Math.random() - 0.5);
 
-    for (const urlItem of candidatosEmbaralhados) {
-      // Verifica no banco de dados SQLite se esse produto já foi postado recentemente
-      const jaExiste = await linkJaExiste(urlItem);
+    for (const oferta of ofertasEmbaralhadas) {
+      const jaExiste = await linkJaExiste(oferta.linkAfiliado);
       if (jaExiste) {
-        console.log(`⚠️ [ROBÔ ML] Produto já publicado anteriormente (pulando): ${urlItem}`);
         continue;
       }
 
-      console.log(`🔥 [ROBÔ ML] Processando produto inédito: ${urlItem}`);
-
-      // Processa título, preço real e foto do produto raspado
-      const oferta = await processarLinkGenerico(urlItem, '');
-      
-      oferta.loja = 'Mercado Livre';
-      // Atribui o link real da oferta raspada para o botão/link
-      oferta.linkAfiliado = urlItem; 
+      console.log(`🔥 [ROBÔ ML] Publicando oferta inédita: ${oferta.titulo} - R$ ${oferta.precoAtual}`);
 
       const mensagemPronta = formatarMensagemOferta(oferta);
 
@@ -123,15 +103,14 @@ async function buscarEPostarAutomatico() {
         });
       }
 
-      // Salva no banco de dados para nunca mais repetir essa oferta
-      await salvarOferta(oferta.titulo, oferta.precoAtual, urlItem, 'Mercado Livre', 'BR');
+      await salvarOferta(oferta.titulo, oferta.precoAtual, oferta.linkAfiliado, 'Mercado Livre', 'BR');
       registrarPostagem(oferta);
 
-      console.log(`✅ [ROBÔ ML] Nova oferta variada ("${oferta.titulo}") publicada com sucesso!`);
-      break; // Publica apenas 1 oferta por ciclo de 30 min para manter o ritmo perfeito
+      console.log(`✅ [ROBÔ ML] Publicado com sucesso no canal: "${oferta.titulo}"`);
+      break; // Posta 1 oferta por ciclo
     }
   } catch (error) {
-    console.error('❌ [ROBÔ ML] Erro na rotina do Mercado Livre:', error);
+    console.error('❌ [ROBÔ ML] Erro na rotina de publicação:', error);
   }
 }
 
@@ -141,9 +120,9 @@ function iniciarAgendadorAutomatico() {
     await buscarEPostarAutomatico();
   });
 
-  console.log('⏱️ Agendador Cron ativo para o Mercado Livre (Frequência: 30 min)');
+  console.log('⏱️ Agendador Cron ativo (Frequência: 30 min)');
   
-  // Dispara o teste imediato ao ligar o servidor no Render
+  // Dispara uma postagem teste assim que o servidor subir no Render
   buscarEPostarAutomatico();
 }
 
@@ -239,7 +218,7 @@ async function iniciarBot() {
   });
 
   bot.start();
-  console.log('🚀 Achadinhos Tech ON operando com Mercado Livre!');
+  console.log('🚀 Achadinhos Tech ON operando!');
 }
 
 iniciarBot();

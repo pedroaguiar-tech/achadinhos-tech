@@ -8,26 +8,17 @@ export async function processarLinkGenerico(urlOriginal: string, tagAmazon: stri
     'Accept-Language': 'pt-BR,pt;q=0.9',
   };
 
-  // Resolve redirecionamento de links encurtados (meli.la ou shp.ee)
   try {
-    const resRedir = await axios.get(urlOriginal, {
-      headers: headersNavegador,
-      maxRedirects: 5,
-      timeout: 6000,
-    });
+    const resRedir = await axios.get(urlOriginal, { headers: headersNavegador, maxRedirects: 5, timeout: 5000 });
     if (resRedir.request?.res?.responseUrl) {
       url = resRedir.request.res.responseUrl;
     }
-  } catch (e) {
-    // Segue com a URL original em caso de falha no redirecionamento
-  }
+  } catch (e) {}
 
-  const urlMinuscula = url.toLowerCase();
-
-  // 1. SHOPEE
-  if (urlMinuscula.includes('shopee.com.br') || urlMinuscula.includes('shp.ee')) {
+  // SHOPEE
+  if (url.toLowerCase().includes('shopee.com.br') || url.toLowerCase().includes('shp.ee')) {
     try {
-      const response = await axios.get(url, { headers: headersNavegador, timeout: 10000 });
+      const response = await axios.get(url, { headers: headersNavegador, timeout: 8000 });
       const $ = cheerio.load(response.data);
 
       let titulo = $('meta[property="og:title"]').attr('content') || $('title').text().trim() || 'Produto Shopee';
@@ -35,9 +26,7 @@ export async function processarLinkGenerico(urlOriginal: string, tagAmazon: stri
 
       const imagem = $('meta[property="og:image"]').attr('content') || '';
       const precoMeta = $('meta[property="product:price:amount"]').attr('content') || $('meta[property="og:price:amount"]').attr('content');
-      
-      let preco = 0;
-      if (precoMeta) preco = parseFloat(precoMeta);
+      let preco = precoMeta ? parseFloat(precoMeta) : 0;
 
       return {
         titulo: titulo,
@@ -51,7 +40,7 @@ export async function processarLinkGenerico(urlOriginal: string, tagAmazon: stri
     }
   }
 
-  // 2. MERCADO LIVRE
+  // MERCADO LIVRE
   const matchId = url.match(/MLB-?(\d+)/i);
   let tituloFormatado = '';
 
@@ -68,51 +57,6 @@ export async function processarLinkGenerico(urlOriginal: string, tagAmazon: stri
   if (matchId) {
     const mlbId = `MLB${matchId[1]}`;
 
-    // A) Consulta Detalhes do Produto de Catálogo (/products/MLB...)
-    try {
-      const resProd = await axios.get(`https://api.mercadolibre.com/products/${mlbId}`, { timeout: 4000 });
-      if (resProd.data) {
-        const data = resProd.data;
-        const titulo = data.name || tituloFormatado;
-        
-        // Pega o preço da caixa de compra principal (buy_box_winner)
-        let preco = data.buy_box_winner?.price || 0;
-        
-        // Pega a imagem principal
-        let img = '';
-        if (data.pictures && data.pictures.length > 0) {
-          img = data.pictures[0].url || data.pictures[0].secure_url;
-        }
-
-        if (preco > 0 || img) {
-          return {
-            titulo: titulo,
-            precoAtual: preco,
-            linkAfiliado: urlOriginal,
-            loja: 'Mercado Livre',
-            imagem: img
-          };
-        }
-      }
-    } catch (e) {}
-
-    // B) Consulta Itens Atrelados ao Catálogo (/products/MLB.../items)
-    try {
-      const resCat = await axios.get(`https://api.mercadolibre.com/products/${mlbId}/items`, { timeout: 4000 });
-      if (resCat.data && resCat.data.results && resCat.data.results.length > 0) {
-        const item = resCat.data.results[0];
-        const img = item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : '';
-        return {
-          titulo: item.title || tituloFormatado,
-          precoAtual: item.price || 0,
-          linkAfiliado: urlOriginal,
-          loja: 'Mercado Livre',
-          imagem: img
-        };
-      }
-    } catch (e) {}
-
-    // C) Consulta Item Direto (/items/MLB...)
     try {
       const resItem = await axios.get(`https://api.mercadolibre.com/items/${mlbId}`, { timeout: 4000 });
       if (resItem.data && resItem.data.title) {
