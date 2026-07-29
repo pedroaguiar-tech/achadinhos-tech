@@ -8,13 +8,8 @@ export interface Oferta {
   imagem?: string;
 }
 
-export function formatarMensagemOferta(oferta: any): string {
-  const precoFormatado = oferta.precoAtual && oferta.precoAtual > 0
-    ? `R$ ${oferta.precoAtual.toFixed(2).replace('.', ',')}`
-    : 'Consulte no site';
-
-  return `🔥 **${oferta.titulo}**\n\n💰 **Preço:** ${precoFormatado}\n🛒 **Loja:** ${oferta.loja}\n\n🔗 **Garanta o seu aqui:**\n${oferta.linkAfiliado}`;
-}
+export function formatarMensagemOferta(oferta: Oferta): string {
+  const preco = oferta.precoAtual || 0;
 
   const precoFormatado = preco > 0 
     ? `R$ ${preco.toFixed(2).replace('.', ',')}` 
