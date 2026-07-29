@@ -25,7 +25,7 @@ const bot = new Bot(BOT_TOKEN);
 
 function iniciarServidorWeb() {
   const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 10000;
 
   app.use(express.static(path.join(__dirname, '../public')));
 
@@ -33,84 +33,48 @@ function iniciarServidorWeb() {
     res.sendFile(path.join(__dirname, '../public/index.html'));
   });
 
-  app.listen(PORT, () => {
-    console.log(`🌐 Landing Page rodando em: http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌐 Landing Page rodando na porta: ${PORT}`);
   });
 }
 
-/**
- * Busca ofertas em alta usando a API oficial do Mercado Livre Brasil (sem bloqueio de IP)
- */
-async function buscarOfertasMercadoLivreAPI(): Promise<any[]> {
-  const termosBusca = ['tecnologia', 'smartphone', 'fone bluetooth', 'gamer', 'smartwatch', 'casa inteligente'];
-  const termoSorteado = termosBusca[Math.floor(Math.random() * termosBusca.length)];
+// Lista de links do Mercado Livre para o robô automático alternar sem tomar 403
+const LINKS_AUTOMATICOS = [
+  'https://www.mercadolivre.com.br/creatina-monohidratada-250g-growth-supplements-sem-sabor-em-po/p/MLB19603205',
+  'https://www.mercadolivre.com.br/multivitaminico-60-caps-growth-supplements-sem-sabor-sem-sabor/p/MLB67352286',
+  'https://www.mercadolivre.com.br/smart-tv-philco-40-p40vik-led-roku-dolby-audio-wi-fi-hdmi-hdr-full-hd-110220v/p/MLB67270079',
+  'https://www.mercadolivre.com.br/smartphone-motorola-moto-g56-5g-256gb-16gb-camera-50mp/p/MLB62405543',
+  'https://www.mercadolivre.com.br/fone-de-ouvido-sem-fio-bluetooth-headphone/p/MLB21856382'
+];
 
-  try {
-    const urlApi = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(termoSorteado)}&sort=relevance`;
-    const response = await axios.get(urlApi, { timeout: 8000 });
-
-    if (response.data && response.data.results) {
-      return response.data.results.map((item: any) => ({
-        titulo: item.title,
-        precoAtual: item.price,
-        linkAfiliado: item.permalink,
-        loja: 'Mercado Livre',
-        imagem: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : ''
-      }));
-    }
-    return [];
-  } catch (error) {
-    console.error('⚠️ Erro ao buscar ofertas na API do ML:', error);
-    return [];
-  }
-}
-
-/**
- * Rotina automática autônoma de busca e publicação
- */
 async function buscarEPostarAutomatico() {
-  console.log('🤖 [ROBÔ ML] Buscando nova promoção via API Oficial do Mercado Livre...');
+  console.log('🤖 [ROBÔ ML] Executando postagem automática de ofertas...');
 
   try {
-    const ofertas = await buscarOfertasMercadoLivreAPI();
+    const listaEmbaralhada = LINKS_AUTOMATICOS.sort(() => Math.random() - 0.5);
 
-    if (!ofertas || ofertas.length === 0) {
-      console.log('⚠️ Nenhuma oferta encontrada na API no momento.');
-      return;
-    }
+    for (const urlItem of listaEmbaralhada) {
+      const jaExiste = await linkJaExiste(urlItem);
+      if (jaExiste) continue;
 
-    // Embaralha para variar as postagens
-    const ofertasEmbaralhadas = ofertas.sort(() => Math.random() - 0.5);
+      console.log(`🔥 [ROBÔ ML] Processando produto: ${urlItem}`);
 
-    for (const oferta of ofertasEmbaralhadas) {
-      const jaExiste = await linkJaExiste(oferta.linkAfiliado);
-      if (jaExiste) {
-        continue;
-      }
-
-      console.log(`🔥 [ROBÔ ML] Publicando oferta inédita: ${oferta.titulo} - R$ ${oferta.precoAtual}`);
-
+      const oferta = await processarLinkGenerico(urlItem, '');
       const mensagemPronta = formatarMensagemOferta(oferta);
 
-      if (oferta.imagem) {
-        await bot.api.sendPhoto(CANAL_BR, oferta.imagem, {
-          caption: mensagemPronta,
-          parse_mode: 'Markdown',
-        });
-      } else {
-        await bot.api.sendMessage(CANAL_BR, mensagemPronta, {
-          parse_mode: 'Markdown',
-        });
-      }
+      // Envia SOMENTE mensagem de texto no canal (Sem Foto)
+      await bot.api.sendMessage(CANAL_BR, mensagemPronta, {
+        parse_mode: 'Markdown',
+      });
 
-      await salvarOferta(oferta.titulo, oferta.precoAtual, oferta.linkAfiliado, 'Mercado Livre', 'BR');
+      await salvarOferta(oferta.titulo, oferta.precoAtual, urlItem, oferta.loja, 'BR');
       registrarPostagem(oferta);
 
-      console.log(`✅ [ROBÔ ML] Publicado com sucesso no canal: "${oferta.titulo}"`);
-      break; // Posta 1 oferta por ciclo
+      console.log(`✅ [ROBÔ ML] Oferta publicada com sucesso: "${oferta.titulo}"`);
+      break; 
     }
   } catch (error) {
-    console.error('❌ [ROBÔ ML] Erro na rotina de publicação:', error);
+    console.error('❌ [ROBÔ ML] Erro na publicação automática:', error);
   }
 }
 
@@ -121,8 +85,6 @@ function iniciarAgendadorAutomatico() {
   });
 
   console.log('⏱️ Agendador Cron ativo (Frequência: 30 min)');
-  
-  // Dispara uma postagem teste assim que o servidor subir no Render
   buscarEPostarAutomatico();
 }
 
@@ -132,7 +94,7 @@ async function iniciarBot() {
   iniciarAgendadorAutomatico();
 
   bot.command('start', (ctx) => {
-    return ctx.reply('👋 **Olá! Bem-vindo ao Achadinhos Tech!**\n\nEnvie o link de qualquer produto para formatar a oferta.', { parse_mode: 'Markdown' });
+    return ctx.reply('👋 **Olá! Bem-vindo ao Achadinhos Tech!**\n\nEnvie o link do produto para formatar a oferta.', { parse_mode: 'Markdown' });
   });
 
   bot.on('message:text', async (ctx) => {
@@ -149,7 +111,7 @@ async function iniciarBot() {
       return ctx.reply('⚠️ **Atenção:** Este link já foi registrado anteriormente!', { parse_mode: 'Markdown' });
     }
 
-    const mensagemAviso = await ctx.reply('🔎 *Buscando dados atualizados do produto...*', { parse_mode: 'Markdown' });
+    const mensagemAviso = await ctx.reply('🔎 *Buscando dados do produto...*', { parse_mode: 'Markdown' });
 
     try {
       const oferta = await processarLinkGenerico(textoRecebido, '');
@@ -164,14 +126,7 @@ async function iniciarBot() {
         .text('🇧🇷 Postar no Brasil', 'postar_br')
         .text('🇪🇺 Postar na Europa', 'postar_eu');
 
-      if (oferta.imagem) {
-        return ctx.replyWithPhoto(oferta.imagem, {
-          caption: mensagemPronta,
-          parse_mode: 'Markdown',
-          reply_markup: teclado,
-        });
-      }
-
+      // Responde SOMENTE com texto e botões
       return ctx.reply(mensagemPronta, {
         parse_mode: 'Markdown',
         reply_markup: teclado,
@@ -188,15 +143,7 @@ async function iniciarBot() {
       await ctx.answerCallbackQuery({ text: `Enviando para o canal ${regiaoNome}...` });
       const mensagemOriginal = ctx.callbackQuery.message;
 
-      if (mensagemOriginal?.photo) {
-        const photoId = mensagemOriginal.photo[mensagemOriginal.photo.length - 1].file_id;
-        const caption = mensagemOriginal.caption || '';
-
-        await ctx.api.sendPhoto(canalTarget, photoId, {
-          caption: caption,
-          parse_mode: 'Markdown',
-        });
-      } else if (mensagemOriginal?.text) {
+      if (mensagemOriginal?.text) {
         await ctx.api.sendMessage(canalTarget, mensagemOriginal.text, {
           parse_mode: 'Markdown',
         });
@@ -205,7 +152,7 @@ async function iniciarBot() {
       await ctx.reply(`✅ **Publicado com sucesso no canal da ${regiaoNome}!**`, { parse_mode: 'Markdown' });
     } catch (err) {
       console.error(`Erro ao postar no canal ${regiaoNome}:`, err);
-      await ctx.reply(`❌ Erro ao enviar para o canal da ${regiaoNome}. Verifique se o bot é Admin no canal!`);
+      await ctx.reply(`❌ Erro ao enviar para o canal.`);
     }
   }
 
@@ -218,7 +165,7 @@ async function iniciarBot() {
   });
 
   bot.start();
-  console.log('🚀 Achadinhos Tech ON operando!');
+  console.log('🚀 Achadinhos Tech ON (Modo Texto/Preço Ativo)!');
 }
 
 iniciarBot();
